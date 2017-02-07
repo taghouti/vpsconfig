@@ -1,0 +1,155 @@
+--INSTALL APACHE
+apt-get install apache2
+nano /etc/apache2/mods-enabled/dir.conf
+
+--INSTALL SQL
+apt-get install mysql-server
+mysql_secure_installation
+add-apt-repository ppa:ondrej/php
+apt update
+apt install phpmyadmin
+
+--INSTALL PHP
+apt-get install php7.0 php5.6 php5.6-mysql php-gettext php5.6-mbstring php-mbstring
+apt-get install php7.0-mbstring php-xdebug libapache2-mod-php5.6 libapache2-mod-php7.0
+service apache2 restart
+
+--CONFIG PHP
+echo "a2dismod php7.0 ; a2enmod php5.6 ; service apache2 restart ; update-alternatives --set php /usr/bin/php5.6" > /opt/php5.sh
+chmod +x /opt/php5.sh
+ln -s /opt/php5.sh /bin/php5
+echo "a2dismod php5.6 ; a2enmod php7.0 ; service apache2 restart ; update-alternatives --set php /usr/bin/php7.0" > /opt/php7.sh
+chmod +x /opt/php5.sh
+ln -s /opt/php7.sh /bin/php7
+
+--INSTALL WEBMIN
+wget -O- http://www.webmin.com/jcameron-key.asc | apt-key add -
+echo "## WEBMIN\n" >> /etc/apt/sources.list
+echo "deb http://download.webmin.com/download/repository sarge contrib\n" >> /etc/apt/sources.list
+echo "deb http://webmin.mirror.somersettechsolutions.co.uk/repository sarge contrib\n" >> /etc/apt/sources.list
+apt update
+apt install webmin
+service webmin restart
+
+--FIX PERL LANGUAGE
+locale-gen fr_FR.UTF-8
+dpkg-reconfigure locales
+
+--PROFTPD
+sudo apt install proftpd
+addgroup web
+addgroup ftp
+usermod www-data -G web -a
+chmod -R 775 /var/www/html/
+chown -R root:web /var/www/html/
+useradd ftpuser -s /bin/false -d /var/www/html/
+usermod ftpuser -G ftp,web -a
+passwd ftpuser
+
+
+
+
+Include /etc/proftpd/modules.conf
+
+RootLogin off
+
+UseIPv6 off
+IdentLookups off
+ServerType standalone
+DeferWelcome off
+MultilineRFC2228 on
+DefaultServer on
+ShowSymlinks on
+TimeoutNoTransfer 600
+TimeoutStalled 600
+TimeoutIdle 1200
+
+ServerName "MIND VPS FTP"
+DisplayLogin welcome.msg
+DisplayChdir .message true
+ListOptions "-l"
+
+# Default ftp port
+Port 21
+# Denied files types
+DenyFilter \*.*/
+# Umask 022 is a good standard umask to prevent new files and dirs
+# (second parm) from being group and world writable.
+Umask 022 022
+# Normally, we want files to be overwriteable.
+AllowOverwrite on
+# To prevent DoS attacks, set the maximum number of child processes to 30
+MaxInstances 30
+# Ports range to by-pass firewall limitations
+# PassivePorts 49152 65534
+
+# Home directory
+DefaultRoot /var/www/html/
+# Lock all the users in home directory
+DefaultRoot ~
+# User and group that the server normally runs at.
+User nobody
+Group ftp
+
+TransferLog /var/log/proftpd/xferlog
+SystemLog   /var/log/proftpd/proftpd.log
+# Logging onto /var/log/lastlog is enabled but set to off by default
+#UseLastlog on
+
+# Users require a valid shell listed in /etc/shells to login.
+RequireValidShell off
+
+<Limit LOGIN>
+    DenyGroup !root
+    AllowGroup AND ftp,web
+</Limit>
+
+# Anonymous share
+<Anonymous ~ftp>
+     User ftp
+     Group nogroup
+    <Limit LOGIN>
+        AllowAll
+    </Limit>
+   # We want clients to be able to login with "anonymous" as well as "ftp"
+   UserAlias anonymous ftp
+   # Cosmetic changes, all files belongs to ftp user
+   DirFakeUser  on ftp
+   DirFakeGroup on ftp
+   RequireValidShell off
+   # Limit the maximum number of anonymous logins
+   MaxClients 10
+   # Limit WRITE everywhere in the anonymous chroot
+   <Directory *>
+     <Limit WRITE>
+       DenyAll
+     </Limit>
+   </Directory>
+</Anonymous>
+
+<IfModule mod_quotatab.c>
+    QuotaEngine off
+</IfModule>
+
+<IfModule mod_ratio.c>
+    Ratios off
+</IfModule>
+
+<IfModule mod_delay.c>
+    DelayEngine on
+</IfModule>
+
+<IfModule mod_ctrls.c>
+    ControlsEngine        off
+    ControlsMaxClients    2
+    ControlsLog           /var/log/proftpd/controls.log
+    ControlsInterval      5
+    ControlsSocket        /var/run/proftpd/proftpd.sock
+</IfModule>
+
+<IfModule mod_ctrls_admin.c>
+    AdminControlsEngine off
+</IfModule>
+
+# Include other custom configuration files
+Include /etc/proftpd/conf.d/
